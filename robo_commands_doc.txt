@@ -1,12 +1,16 @@
 Aktionen
 
-r Geschwindigkeit
+name <Name>
+	setze Name des Roboters
+r <Geschwindigkeit>
 	lasse das linke Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
-l Geschwindigkeit
+l <Geschwindigkeit>
 	lasse das rechte Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
-t Geschwindigkeit
-	drehe Aufsatz mit angegebener Geschwindigkeit (Schleuder + Schild?)
-f Größe Geschwindigkeit
+tg <Geschwindigkeit>
+	drehe Schleuder-/Schild-Aufsatz mit angegebener Geschwindigkeit
+tr <Geschwindigkeit>
+	drehe Radar-Aufsatz mit angegebener Geschwindigkeit
+f <Größe> <Geschwindigkeit>
 	wirf Wasserbombe mit angegebener Größe und Geschwindigkeit (je größer und schneller desto mehr Energie)
 
 
@@ -14,13 +18,17 @@ Sensoren
 
 compass
 	lies die Orientierung aus
-radar fov
+radar <fov>
 	lies den Radar aus (in einem Winkel [+/-]fov° vor dem Roboter)
 energy
 	lies die Energie aus
 rr*
+	gib aus wie viele Grad sich der linke Motor gedreht hat
 rl*
-rt*
-	gib aus wie viele Grad sich die Motoren für rechtes Rad/ linkes Rad/ Aufsatz gedreht haben
+	gib aus wie viele Grad sich der rechte Motor gedreht hat
+rtg
+	gib aus wie viele Grad sich der Schleuder-/Schild-Aufsatz gedreht hat
+rtr
+	gib aus wie viele Grad sich der Radar-Aufsatz gedreht hat
 
 *) geht noch nicht

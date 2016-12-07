@@ -6,6 +6,10 @@ import pygame
 import socket_connection
 import itertools
 
+import sys
+if sys.version >= "3":
+    raw_input = input
+
 # je stärker höher die Schusskraft desto größer die maximale Geschossenergie
 # schwerere Geschosse, machen mehr schaden aber fliegen langsamer
 # wenn zwei Roboter einander verdrängen bleibt der mit mehr Bodenhaftung mehr stehen
@@ -25,7 +29,7 @@ class Field(object):
 
 class BotStats(object):
     # 20 Punkte zu vergeben?
-    reload_delay = 0
+    reload_delay = 1
     speed = 0
     acceleration = 0
     armor = 0
@@ -62,11 +66,14 @@ class Bot(Entity):
         # other attrs
         self.stats = stats
         self.energy = 100
+        self.life = 100
         self.score = 0
         self.rotation = 0
-        self.rotation_top = 0
+        self.rotation_gun = 0
+        self.rotation_radar = 0
         self._name = ""
         self.timeout = time.time()
+        self.last_fire = time.time()
         # Bilder erstellen
         self.img = pygame.image.load("bot.png")
         self.img_top = pygame.Surface((50,50)).convert_alpha()
@@ -74,10 +81,12 @@ class Bot(Entity):
         pygame.draw.rect(self.img_top,(200,200,200,255),(30,24,20,2))
         pygame.draw.rect(self.img_top,(200,200,200,255),(20,20,10,10))
         self.img_name = pygame.Surface((0,0))
+        self.img_radar = pygame.image.load("radar.png")
         # stuff copied from taro
-        self.vl = 0 # Geschwindigkeit für linken Motor
-        self.vr = 0 # Geschwindigkeit für rechten Motor
-        self.vt = 0 # Geschwindigkeit für Aufsatz (Radar und Schleuder)
+        self.vl  = 0 # Geschwindigkeit für linken Motor
+        self.vr  = 0 # Geschwindigkeit für rechten Motor
+        self.vtg = 0 # Geschwindigkeit für Geschützaufsatz
+        self.vtr = 0 # Geschwindigkeit für Radaraufsatz
         self.time = time.time()
 
         self.MOLMAX = 30
@@ -98,12 +107,20 @@ class Bot(Entity):
     def update(self,window):
         # hook for testing
         self.loop()
-        # ohne Energie geht nix
+        # ohne Energie geht nix,
         if self.energy <= 0:
             self.energy = 0
             self.vl = 0
             self.vr = 0
-            self.vt = 0
+            self.vtg = 0
+            self.vtr = 0
+        # außerhalb des Spielfeldes geht nicht
+        w,h = window.get_size()
+        if not ((0 < self.pos[0] < w) and (0 < self.pos[1] < h)) :
+            self.respawn(w,h)
+        # und ohne Leben erst recht nicht
+        if self.life <= 0:
+            self.respawn(w,h)
         # Bewegung berechnen
         self.calculate_movement(window)
         # Externe Kräfte zurücksetzen
@@ -155,30 +172,39 @@ class Bot(Entity):
         self.v[0]=vx
         self.v[1]=vy
         #Wert benutzen um durch die Gegend zu fahren
-        self.rotation+=angle
-        self.rotation_top+=angle
-        self.rotation_top+=self.vt*dt
+        self.rotation       += angle
+        self.rotation_gun   += angle
+        self.rotation_radar += angle
+        self.rotation_gun   += self.vtg*dt
+        self.rotation_radar += self.vtr*dt
         self.rotation %= 360
-        self.rotation_top %= 360
+        self.rotation_gun %= 360
+        self.rotation_radar %= 360
         self.pos[0] += self.v[0]*dt
         self.pos[1] += self.v[1]*dt
         # Energie verbrauchen
-        self.energy -= (self.vl*dt*0.1)**2
-        self.energy -= (self.vr*dt*0.1)**2
-        # Positionscheck
-        w,h = window.get_size()
-        if not ((0 < self.pos[0] < w) and (0 < self.pos[1] < h)) :
-            self.pos = [random.randint(100,w-100),random.randint(100,h-100)]
-            self.v = [0,0]
-            self.energy = 100
-            self.score = 0
+        self.energy -=  self.vl**2*dt*0.0001
+        self.energy -=  self.vr**2*dt*0.0001
+        ### self.energy -= (0.00001*self.vtg**2+0.001*abs(self.vtg))*dt
+
+    def respawn(self,w,h):
+        #M# repawn delay?
+        self.pos = [random.randint(100,w-100),random.randint(100,h-100)]
+        self.v = [0,0]
+        self.energy = 100
+        self.life = 100
+        self.score = 0
+        self.init()
 
     def show_on(self,window):
-        energy = font.render(str(int(self.energy)),True,(0,255,0))
+        img_energy = font.render(str(int(self.energy)),True,(0,255,0))
+        img_life = font.render(str(int(self.life)),True,(255,50,50))
         for img, rotation, dy in ((self.img,self.rotation,0),
-                                  (self.img_top,self.rotation_top+90,0),
-                                  (energy,0,-40),
-                                  (self.img_name,0,-50)):
+                                  (self.img_top,self.rotation_gun+90,0),
+                                  (self.img_radar,self.rotation_radar,0),
+                                  (img_life,0,-40),
+                                  (img_energy,0,-50),
+                                  (self.img_name,0,-60)):
             img = pygame.transform.rotate(img,rotation)
             pos = (self.pos[0] - img.get_width()//2,
                    self.pos[1] - img.get_height()//2 + dy)
@@ -193,9 +219,10 @@ class Bot(Entity):
             return "done"
         # es folgen die Sachen die Zahlen als Argumente haben
         try:
-            data = map(int,data)
+            assert all([i not in ("NaN","inf","-inf") for i in data])
+            data = list(map(float,data))
         except:
-            return "Formatierungsfehler: Argument muss ganze Zahl sein"
+            return "Formatierungsfehler: Argument muss Zahl sein"
         c = len(data)
         if action == "r" and c == 1:
             self.vr = data[0]
@@ -203,18 +230,24 @@ class Bot(Entity):
         if action == "l" and c == 1:
             self.vl = data[0]
             return "done"
-        if action == "t" and c == 1:
-            self.vt = data[0]
+        if action == "tg" and c == 1:
+            self.vtg = data[0]
+            return "done"
+        if action == "tr" and c == 1:
+            self.vtr = data[0]
             return "done"
         if action == "f" and c == 2:
             return self.fire(data[0],data[1])
         if action == "energy":
-            return str(self.energie)
+            return str(self.energy)
         if action == "compass":
             return str(self.rotation)
+        if action == "rtg":
+            return str(self.rotation_gun)
+        if action == "rtr":
+            return str(self.rotation_radar)
         if action == "radar" and c == 1:
             return self.radar(data[0])
-        
         return "this command is not (yet?) supported"
 
     def radar(self,fov):
@@ -227,7 +260,7 @@ class Bot(Entity):
                 if dx == 0 and dy == 0:
                     continue
                 a = (math.atan2(dy,dx)/math.pi*180-90)%360
-                if rotary_distance(a,self.rotation)<fov:
+                if rotary_distance(a,self.rotation_radar)<fov:
                     d2 = dx**2+dy**2 #rechne mit Quadraten, das spart Rechenzeit
                     if d2 < d2_min:
                         d2_min = d2
@@ -237,16 +270,21 @@ class Bot(Entity):
         return "nothing"
 
     def fire(self,size,v):
-        e = size**2+size*v/100 #eigentlich **3, aber es ist ja 2D
+        if size <= 0:
+            return "that doesn't make any sense at all"
+        if time.time() < self.last_fire + self.stats.reload_delay:
+            return "still reloading"
+        e = size**2+max(1,size)*v/100 #eigentlich **3, aber es ist ja 2D
         if self.energy >= e:
             self.energy -= e
-            dx = -math.sin(math.radians(self.rotation_top))
-            dy = -math.cos(math.radians(self.rotation_top))
+            dx = -math.sin(math.radians(self.rotation_gun))
+            dy = -math.cos(math.radians(self.rotation_gun))
             d = (self.RADIUS+size+1)
             Projectile(self.field,
                        (self.pos[0]+dx*d,self.pos[1]+dy*d),
                        size,
                        (self.v[0]+dx*v,self.v[1]+dy*v))
+            self.last_fire = time.time()
             return "done"
         return "energy low"
 
@@ -269,6 +307,17 @@ class Battery(Entity):
         pygame.draw.rect(window,(100,100,100),(self.pos[0]+1,self.pos[1]-1,3,2))
         pygame.draw.rect(window,(0,255,0),(self.pos[0]+1,self.pos[1]+3,3,6))
 
+class MediKit(Entity):
+    type = "MediKit"
+    RADIUS = 10
+    def __init__(self,field,pos):
+        Entity.__init__(self,field)
+        self.pos = pos
+    def update(self,window):
+        pygame.draw.rect(window,(100,100,100),(self.pos[0],self.pos[1],5,10))
+        pygame.draw.rect(window,(100,100,100),(self.pos[0]+1,self.pos[1]-1,3,2))
+        pygame.draw.rect(window,(255,0,0),(self.pos[0]+1,self.pos[1]+3,3,6))
+
 class Barrier(Entity):
     type = "Barrier"
     def __init__(self,pos,radius):
@@ -286,7 +335,7 @@ class Projectile(Entity):
         self.velocity = velocity
         self.time = time.time()
         self.init_time = time.time()
-        self.timeout = 1
+        self.timeout = 5
     def update(self,window):
         if time.time() - self.init_time > self.timeout:
             self.alive = False
@@ -296,7 +345,7 @@ class Projectile(Entity):
         self.time = time.time()
         self.pos[0]+=self.velocity[0]*dt
         self.pos[1]+=self.velocity[1]*dt
-        pygame.draw.circle(window,(200,200,255),map(int,self.pos),self.RADIUS)
+        pygame.draw.circle(window,(255,255,255),[int(i) for i in self.pos],int(self.RADIUS)+2)
         w, h = window.get_size()
         if not ((0 < self.pos[0] < w) and (0 < self.pos[1] < h)) :
             self.alive = False
@@ -319,21 +368,34 @@ class DrivingTestBot(Bot):
 
 class ShootingTestBot(Bot):
     def init(self):
-        self.do("t 0")
-        self.i = 0
+        self.do("tg 120")
+        self.do("tr 120")
+        self.energy = 20
     def loop(self):
-        if self.do("radar 1") == "nothing":
-            self.do("l 50")
-            self.do("r -50")
-            self.i = 0
+        r = self.do("radar 1")
+        if r and ("Battery" in r or "MediKit" in r):
+            e = self.do("energy")
+            if e:
+                e = str(float(e)*5)
+            r = self.do("f 0.001 %s" %e)
+            if r != "done":
+                self.do("tg 0")
+                self.do("tr 0")
         else:
-            self.do("l 1")
-            self.do("r -1")
-            self.i = (self.i+1)%30
-            if not self.i:
-                r = self.do("f 2 500")
-                if r == "energy low":
-                    self.energy = 100
+            self.do("tg 120")
+            self.do("tr 120")
+
+class HackerTestBot(Bot):
+    def init(self):
+        self.energy = float("inf")
+        for cmd,c_nums in (("r",1),("l",1),("t",1),("radar",1),("f",2),("compass",0),("energy",0)):
+            for nums in itertools.combinations(("0","-1","","inf","-inf","NaN"),c_nums):
+                d = cmd+" "+" ".join(nums)
+                try:
+                    self.do(d)
+                except Exception as err:
+                    print("security test:",d,err)
+        self.alive = False
 
 def collide_bot_battery(a,b):
     if a.type == "Bot":
@@ -344,8 +406,17 @@ def collide_bot_battery(a,b):
         bot.energy += 10
         battery.alive = False
 
+def collide_bot_medikit(a,b):
+    if a.type == "Bot":
+        bot, medikit = a, b
+    else:
+        bot, medikit = b, a
+    if medikit.alive:
+        bot.life = min(100,bot.life+10)
+        medikit.alive = False
+
 def collide_bot_barrier(a,b):
-    print "bam"
+    print("bam")
     #M# TODO!!!    
 
 def collide_bot_projectile(a,b):
@@ -353,7 +424,7 @@ def collide_bot_projectile(a,b):
         bot, projectile = a, b
     else:
         bot, projectile = b, a
-    bot.energy -= projectile.RADIUS**2
+    bot.life -= projectile.RADIUS**2
     bot.ext_f[0] += projectile.RADIUS**2*projectile.velocity[0]
     bot.ext_f[1] += projectile.RADIUS**2*projectile.velocity[1]
     projectile.alive = False
@@ -379,15 +450,17 @@ def collide_destroy_both(a,b):
 
 collision_handlers = {
     frozenset(("Bot","Battery")):collide_bot_battery,
+    frozenset(("Bot","MediKit")):collide_bot_medikit,
     frozenset(("Bot","Barrier")):collide_bot_barrier,
     frozenset(("Bot","Bot")):collide_bot_bot,
     frozenset(("Bot","Projectile")):collide_bot_projectile,
     frozenset(("Projectile","Projectile")):collide_destroy_both,
     frozenset(("Projectile","Battery")):collide_destroy_both,
+    frozenset(("Projectile","MediKit")):collide_destroy_both,
     }
     
 
-def main():
+def main(server_name):
     #pygame.init()
     
     window = pygame.display.set_mode((700,700))
@@ -395,6 +468,7 @@ def main():
     field = Field()
     robots_by_addr = {}
 
+    HackerTestBot(field)
     for i in range(1):
         Bot            (field).name = "Stone "+str(i)
         DrivingTestBot (field).name = "Circle "+str(i)
@@ -411,7 +485,7 @@ def main():
     clock = pygame.time.Clock()
 
     ende = False
-    with socket_connection.server(key="bot-arena",on_connect=on_connect,on_disconnect=on_disconnect) as server:
+    with socket_connection.server(key="bot-arena",on_connect=on_connect,on_disconnect=on_disconnect,name=server_name) as server:
         while not ende:
             clock.tick(60)
             # connection stuff
@@ -422,17 +496,22 @@ def main():
                     server.send(str(result),addr)
             # game mechanics
             field.entities = set(filter(lambda entity:entity.alive,field.entities))
-            bots = filter(lambda e:isinstance(e,Bot),field.entities)
-            bats = filter(lambda e:isinstance(e,Battery),field.entities)
+            bots = list(filter(lambda e:isinstance(e,Bot),field.entities))
+            bats = list(filter(lambda e:isinstance(e,Battery),field.entities))
+            meds = list(filter(lambda e:isinstance(e,MediKit),field.entities))
             if random.random() < 0.005*(len(bots)-len(bats)):
                 b = Battery(field,(random.randint(10,window.get_width()-20),
+                             random.randint(10,window.get_height()-20)))
+            if random.random() < 0.005*(len(bots)-len(meds)):
+                b = MediKit(field,(random.randint(10,window.get_width()-20),
                              random.randint(10,window.get_height()-20)))
             best = max(bots,key=lambda bot: bot.energy)
             best.score += 0.1
             t = time.time()
             for bot in bots:
+                bot.energy += 0.01
                 if t - bot.timeout > 60:
-                    print bot.name,"timed out"
+                    print(bot.name,"timed out")
                     bot.alive = False
             # io stuff
             for event in pygame.event.get():
@@ -464,4 +543,5 @@ def main():
     pygame.quit()
 
 if __name__ == "__main__":
-    main()
+    name = raw_input("servername: ")
+    main(name)
