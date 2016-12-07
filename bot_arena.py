@@ -274,7 +274,7 @@ class Bot(Entity):
             return "that doesn't make any sense at all"
         if time.time() < self.last_fire + self.stats.reload_delay:
             return "still reloading"
-        e = size**2+max(1,size)*v/100 #eigentlich **3, aber es ist ja 2D
+        e = size**2+max(1,size)*abs(v)/100 #macht physikalisch keinen Sinn, aber dafür strategisch interessant
         if self.energy >= e:
             self.energy -= e
             dx = -math.sin(math.radians(self.rotation_gun))
@@ -374,10 +374,8 @@ class ShootingTestBot(Bot):
     def loop(self):
         r = self.do("radar 1")
         if r and ("Battery" in r or "MediKit" in r):
-            e = self.do("energy")
-            if e:
-                e = str(float(e)*5)
-            r = self.do("f 0.001 %s" %e)
+            v = str(float(r.split(" ",1)[0])/5)
+            r = self.do("f 0.001 %s" %v)
             if r != "done":
                 self.do("tg 0")
                 self.do("tr 0")
