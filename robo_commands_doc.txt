@@ -1,0 +1,26 @@
+Aktionen
+
+r Geschwindigkeit
+	lasse das linke Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
+l Geschwindigkeit
+	lasse das rechte Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
+t Geschwindigkeit
+	drehe Aufsatz mit angegebener Geschwindigkeit (Schleuder + Schild?)
+f Größe Geschwindigkeit
+	wirf Wasserbombe mit angegebener Größe und Geschwindigkeit (je größer und schneller desto mehr Energie)
+
+
+Sensoren
+
+compass
+	lies die Orientierung aus
+radar fov
+	lies den Radar aus (in einem Winkel [+/-]fov° vor dem Roboter)
+energy
+	lies die Energie aus
+rr*
+rl*
+rt*
+	gib aus wie viele Grad sich die Motoren für rechtes Rad/ linkes Rad/ Aufsatz gedreht haben
+
+*) geht noch nicht
