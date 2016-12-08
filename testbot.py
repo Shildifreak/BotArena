@@ -1,7 +1,5 @@
 from bot_api import Bot
 
-import time
-
 with Bot() as bot:
     bot.do("name Automyco")
     bot.do("r 50")

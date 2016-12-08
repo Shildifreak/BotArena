@@ -485,7 +485,7 @@ def main(server_name):
         Bot            (field).name = "Stone "+str(i)
         DrivingTestBot (field).name = "Circle "+str(i)
         RadarTestBot   (field).name = "Radar Test "+str(i)
-        ShootingTestBot(field).name = "Evil "+str(i)
+        #ShootingTestBot(field).name = "Evil "+str(i)
     
     def on_connect(addr):
         bot = Bot(field)
@@ -521,7 +521,7 @@ def main(server_name):
             best.score += 0.1
             t = time.time()
             for bot in bots:
-                if bot.energy < 100:
+                if bot.energy < 100.5:
                     bot.energy += 0.01
                 if t - bot.timeout > 60:
                     print(bot.name,"timed out")
