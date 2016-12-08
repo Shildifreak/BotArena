@@ -48,10 +48,15 @@ class Entity(object):
     RADIUS = 0
     pos = (0,0)
     alive = True
+
     def __init__(self,field):
         self.field = field
         field.entities.add(self)
 
+    def __repr__(self):
+        return repr({"type":self.type,
+                     "size":self.RADIUS,
+                    })
 
 class Bot(Entity):
     type = "Bot"
@@ -95,6 +100,15 @@ class Bot(Entity):
         self.GERADEFAHRTGRENZWERT = 0.1 #wenn sich vl und vr um weniger als diesen Wert unterscheiden fährt der Roboter gerade
         # hook for testing
         self.init()
+    
+    def __repr__(self):
+        return repr({"type":self.type,
+                     "life":self.life,
+                     "energy":self.energy,
+                     "compass":self.rotation,
+                     "rtg":self.rotation_gun,
+                     "rtr":self.rotation_radar,
+                    })
 
     def init(self):
         """hook for testing... replace in subclass"""
@@ -266,7 +280,7 @@ class Bot(Entity):
                         d2_min = d2
                         e_min = entity
         if e_min:
-            return str(math.sqrt(d2))+" "+str(e_min)
+            return str(math.sqrt(d2))+" "+repr(e_min)
         return "nothing"
 
     def fire(self,size,v):
@@ -507,7 +521,8 @@ def main(server_name):
             best.score += 0.1
             t = time.time()
             for bot in bots:
-                bot.energy += 0.01
+                if bot.energy < 100:
+                    bot.energy += 0.01
                 if t - bot.timeout > 60:
                     print(bot.name,"timed out")
                     bot.alive = False
