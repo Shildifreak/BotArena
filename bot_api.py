@@ -9,7 +9,7 @@ class Bot(object):
         if len(servers) == 1:
             i = 0
         else:
-            i = select([name for addr,name in servers])
+            i = select([name for addr,name in servers])[0]
         addr,name = servers[i]
         #addr,name = random.choice(servers)
         print("connecting to server %s" %name)
