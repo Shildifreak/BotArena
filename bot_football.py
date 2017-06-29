@@ -3,7 +3,7 @@
 from __future__ import division
 import time, math, random
 import pygame
-import socket_connection
+import socket_connection_2 as socket_connection
 import itertools
 
 import sys
@@ -29,7 +29,7 @@ class Field(object):
 
 class BotStats(object):
     # 20 Punkte zu vergeben?
-    reload_delay = 1
+    reload_delay = 0 # 1
     speed = 0
     acceleration = 0
     armor = 0
@@ -73,6 +73,7 @@ class Bot(Entity):
         self.energy = 100
         self.life = 100
         self.score = 0
+        self.color = (0,255,0)
         self.rotation = 0
         self.rotation_gun = 0
         self.rotation_radar = 0
@@ -226,7 +227,7 @@ class Bot(Entity):
 
     def do(self,cmd):
         self.timeout = time.time()
-        action = cmd.split(" ")[0]
+        action = cmd.split(" ")[0] # mit python3 kann man diese Zeilen als " action, *data = cmd.split(" ") " schreiben
         data = cmd.split(" ")[1:]
         if action == "name":
             self.name = " ".join(data)
@@ -262,7 +263,9 @@ class Bot(Entity):
             return str(self.rotation_radar)
         if action == "radar" and c == 1:
             return self.radar(data[0])
-        return "this command is not (yet?) supported"
+        if action == "color" and c == 3:
+            return self.set_image(*data)
+        return "this command is not (yet?) supported, or you gave a wrong number of parameters"
 
     def radar(self,fov):
         d2_min = float("inf")
@@ -302,13 +305,24 @@ class Bot(Entity):
             return "done"
         return "energy low"
 
+    def set_image(self,r,g,b):
+        color = tuple(map(int,(r,g,b)))
+        for c in color:
+            if not 0 <= c <= 255:
+                return "color values must be in range 0 to 255"
+        self.color = color
+        self.img = pygame.Surface((40,40)).convert_alpha()
+        pygame.draw.rect(self.img,color,(9,3,22,34))
+        self.img.blit(pygame.image.load("bot_transparent.png"),(0,0))
+        return "done"
+
     @property
     def name(self):
         return self._name
     @name.setter
     def name(self,name):
         self._name = name
-        self.img_name = font.render(self._name,True,(0,255,0))
+        self.img_name = font.render(self._name,True,self.color)
 
 class Battery(Entity):
     type = "Battery"
@@ -364,11 +378,72 @@ class Projectile(Entity):
         if not ((0 < self.pos[0] < w) and (0 < self.pos[1] < h)) :
             self.alive = False
 
+class Ball(Entity):
+    type = "Ball"
+    RADIUS = 40
+    friction = 0.1
+    def __init__(self,field,pos):
+        Entity.__init__(self,field)
+        self.pos = pos
+        self.startpos = pos[:]
+        self.velocity = [0,0]
+        self.time = time.time()
+
+    def update(self,window):
+        dt = time.time()-self.time
+        if dt < 0.01: # Berechnung lohnt sich erst nach gewisser Zeit
+            return
+        self.time = time.time()
+        self.pos[0]+=self.velocity[0]*dt
+        self.pos[1]+=self.velocity[1]*dt
+        pygame.draw.circle(window,(255,255,255),tuple(map(int,self.pos)),self.RADIUS)
+        for i, l in zip((0,1),window.get_size()):
+            if self.pos[i] < self.RADIUS:
+                self.pos[i] = self.RADIUS
+                self.velocity[i] =  abs(self.velocity[i])
+            if l < self.pos[i] + self.RADIUS:
+                self.pos[i] = l - self.RADIUS
+                self.velocity[i] = -abs(self.velocity[i])
+            self.velocity[i] *= 1-(self.friction*dt)
+            if abs(self.velocity[i]) > 5000:
+                self.velocity[i] = 5000 if self.velocity[i]>0 else -5000
+
+class Goal(Entity):
+    type = "Goal"
+    RADIUS = 50
+    def __init__(self,field,pos,team):
+        Entity.__init__(self,field)
+        self.pos = tuple(map(int,pos))
+        self.team = team
+    def update(self,window):
+        pygame.draw.circle(window,self.team.color,self.pos,self.RADIUS,5)    
+
+class Team(object):
+    teams = []
+    def __init__(self,color):
+        self.color = color
+        Team.teams.append(self)
+        self.score = 0
+    
+    @property
+    def score(self):
+        return self._score
+    
+    @score.setter
+    def score(self,value):
+        self._score = value
+        self.score_img = font.render(str(value),True,self.color)
+
+    def get_score_img(self):
+        return self.score_img
+
 class RadarTestBot(Bot):
     def init(self):
         self.do("r 50")
+        self.do("color 255 0 0")
     def loop(self):
-        if "Battery" in str(self.do("radar 5")):
+        r = self.do("radar 5")
+        if r and any(x in r for x in("Ball","Battery","MediKit")):
             self.do("l 50")
         else:
             self.do("l -50")
@@ -384,12 +459,11 @@ class ShootingTestBot(Bot):
     def init(self):
         self.do("tg 120")
         self.do("tr 120")
-        self.energy = 20
     def loop(self):
         r = self.do("radar 1")
-        if r and ("Battery" in r or "MediKit" in r):
+        if r and any(x in r for x in("Ball",) ):#"Battery","MediKit",
             v = str(float(r.split(" ",1)[0])/5)
-            r = self.do("f 0.001 %s" %v)
+            r = self.do("f 1 %s" %v)
             if r != "done":
                 self.do("tg 0")
                 self.do("tr 0")
@@ -415,7 +489,7 @@ def collide_bot_battery(a,b):
     else:
         bot, battery = b, a
     if battery.alive:
-        bot.energy += 10
+        bot.energy += 20
         battery.alive = False
 
 def collide_bot_medikit(a,b):
@@ -456,6 +530,51 @@ def collide_bot_bot(a,b):
         b.ext_f[0] -= fx
         b.ext_f[1] -= fy
 
+def collide_ball_bot(a,b):
+    if a.type == "Ball":
+        ball, bot = a,b
+    else:
+        ball, bot = b,a
+    dx = ball.pos[0]-bot.pos[0]
+    dy = ball.pos[1]-bot.pos[1]
+    if dx or dy: # wenn sie nicht am selben Platz stehen
+        d_soll = a.RADIUS + b.RADIUS
+        d = math.sqrt(dx**2+dy**2)
+        f = (d_soll-d)/2
+        f = 100*f**2 #bisschen stärker machen
+        fx = f*dx/d
+        fy = f*dy/d
+        ball.velocity[0] += fx
+        ball.velocity[1] += fy
+        bot.ext_f[0] -= fx
+        bot.ext_f[1] -= fx
+
+def collide_ball_projectile(a,b):
+    if a.type == "Ball":
+        ball, projectile = a,b
+    else:
+        ball, projectile = b,a
+    dx = ball.pos[0]-projectile.pos[0]
+    dy = ball.pos[1]-projectile.pos[1]
+    if dx or dy: # wenn sie nicht am selben Platz stehen
+        d = math.sqrt(dx**2+dy**2)
+        f = 100*projectile.RADIUS**1.5
+        fx = f*dx/d
+        fy = f*dy/d
+        ball.velocity[0] += fx
+        ball.velocity[1] += fy
+    projectile.alive = False
+
+def collide_ball_goal(a,b):
+    if a.type == "Ball":
+        ball, goal = a,b
+    else:
+        ball, goal = b,a
+    ball.pos = ball.startpos[:]
+    ball.velocity = [0,0]
+    goal.team.score += 1
+    print(goal.team.score)
+
 def collide_destroy_both(a,b):
     a.alive = False
     b.alive = False
@@ -469,6 +588,12 @@ collision_handlers = {
     frozenset(("Projectile","Projectile")):collide_destroy_both,
     frozenset(("Projectile","Battery")):collide_destroy_both,
     frozenset(("Projectile","MediKit")):collide_destroy_both,
+    frozenset(("Ball","Bot")):collide_ball_bot,
+    frozenset(("Ball","Projectile")):collide_ball_projectile,
+    #frozenset(("Ball","Barrier")):collide_ball,
+    #frozenset(("Ball","Battery")):collide_ball,
+    #frozenset(("Ball","MediKit")):collide_ball,
+    frozenset(("Ball","Goal")):collide_ball_goal,
     }
     
 
@@ -476,17 +601,26 @@ def main(server_name):
     #pygame.init()
     
     window = pygame.display.set_mode((2000,1000))
+    pygame.display.set_caption("BotArena")
 
     field = Field()
     robots_by_addr = {}
 
+    team_blue = Team((50,50,255))
+    team_purple = Team((255,0,255))
+
+    Ball(field,[i/2 for i in window.get_size()])
+    Goal(field,(                 0,window.get_height()/2),team_purple)
+    Goal(field,(window.get_width(),window.get_height()/2),team_blue)
+
     HackerTestBot(field)
-    for i in range(1):
-        Bot            (field).name = "Stone "+str(i)
-        DrivingTestBot (field).name = "Circle "+str(i)
-        RadarTestBot   (field).name = "Radar Test "+str(i)
-        ShootingTestBot(field).name = "Evil "+str(i)
-    
+    for i in (1,):
+        #Bot            (field).name = "Stone "+team.name
+        #DrivingTestBot (field).name = "Circle "+team.name
+        #RadarTestBot   (field).name = "Radar Test "+str(i)
+        #ShootingTestBot(field).name = "Evil "+str(i)
+        pass
+
     def on_connect(addr):
         bot = Bot(field)
         robots_by_addr[addr] = bot
@@ -511,14 +645,16 @@ def main(server_name):
             bots = list(filter(lambda e:isinstance(e,Bot),field.entities))
             bats = list(filter(lambda e:isinstance(e,Battery),field.entities))
             meds = list(filter(lambda e:isinstance(e,MediKit),field.entities))
-            if random.random() < 0.005*(len(bots)-len(bats)):
+            if random.random() < 0.001*(len(bots)/2+1-len(bats)):
                 b = Battery(field,(random.randint(10,window.get_width()-20),
                              random.randint(10,window.get_height()-20)))
-            if random.random() < 0.005*(len(bots)-len(meds)):
+            if random.random() < 0.001*(len(bots)/2+1-len(meds)):
                 b = MediKit(field,(random.randint(10,window.get_width()-20),
                              random.randint(10,window.get_height()-20)))
+            """
             best = max(bots,key=lambda bot: bot.energy)
             best.score += 0.1
+            """
             t = time.time()
             for bot in bots:
                 if bot.energy < 100:
@@ -546,15 +682,20 @@ def main(server_name):
             window.fill((0,0,0))
             for entity in sorted(field.entities,key=lambda bot: bot.pos[1]):
                 entity.update(window)
+            """
             for i,bot in enumerate(sorted(
                     bots,key=lambda bot: (bot.score,bot.name),reverse=True)):
                 score = font.render(str(int(bot.score)),True,(0,255,0))
                 window.blit(score,(10,10+10*i))
                 window.blit(bot.img_name,(score.get_width()+20,10+10*i))
+            """
+            for i,team in enumerate(Team.teams):
+                window.blit(team.get_score_img(),(int(window.get_width()/2+((len(Team.teams)-1)/2.0-i)*200-team.get_score_img().get_width()/2.0),15))
+                
             pygame.display.update()
 
     pygame.quit()
 
 if __name__ == "__main__":
-    name = raw_input("servername: ")
+    name = "test"#raw_input("servername: ")
     main(name)

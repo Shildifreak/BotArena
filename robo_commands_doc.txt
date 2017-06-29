@@ -2,6 +2,8 @@ Aktionen
 
 name <Name>
 	setze Name des Roboters
+color <r> <g> <b>
+	setze Farbe des Roboters auf den gegebenen RGB Wert (je 0 bis 255) - wenn man den Namen danach setzt ist er ebenfalls bunt
 r <Geschwindigkeit>
 	lasse das linke Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
 l <Geschwindigkeit>
@@ -11,7 +13,7 @@ tg <Geschwindigkeit>
 tr <Geschwindigkeit>
 	drehe Radar-Aufsatz mit angegebener Geschwindigkeit
 f <Größe> <Geschwindigkeit>
-	wirf Wasserbombe mit angegebener Größe und Geschwindigkeit (je größer und schneller desto mehr Energie)
+	schieße mit angegebener Größe und Geschwindigkeit (je größer und schneller desto mehr Energie)
 
 
 Sensoren

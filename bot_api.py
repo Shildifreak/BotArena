@@ -1,5 +1,8 @@
-import socket_connection
+import socket_connection_2 as socket_connection
 import random
+import sys
+if sys.version < "3":
+    input = raw_input
 
 class Bot(object):
     def __init__(self):
@@ -35,14 +38,14 @@ def select(options):
     """
     if not options:
         raise ValueError("no options given")
-    print "\n".join([" ".join(map(str,option)) for option in enumerate(options)])
-    print "Please enter one of the above numbers to select:",
+    print ("\n".join([" ".join(map(str,option)) for option in enumerate(options)]))
+    m = "Please enter one of the above numbers to select:"
     while True:
-        i = raw_input("")
+        i = raw_input(m)
         try:
             return int(i), options[int(i)]
         except ValueError:
-            print "Please enter one of the above NUMBERS to select:",
+            m = "Please enter one of the above NUMBERS to select:",
         except IndexError:
-            print "Please enter ONE OF THE ABOVE numbers to select:",
+            m = "Please enter ONE OF THE ABOVE numbers to select:",
 
