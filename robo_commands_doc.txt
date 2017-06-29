@@ -4,9 +4,9 @@ name <Name>
 	setze Name des Roboters
 color <r> <g> <b>
 	setze Farbe des Roboters auf den gegebenen RGB Wert (je 0 bis 255) - wenn man den Namen danach setzt ist er ebenfalls bunt
-r <Geschwindigkeit>
-	lasse das linke Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
 l <Geschwindigkeit>
+	lasse das linke Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
+r <Geschwindigkeit>
 	lasse das rechte Rad mit angegebener Geschwindigkeit drehen (höhere Geschwindigkeit verbraucht mehr Energie)
 tg <Geschwindigkeit>
 	drehe Schleuder-/Schild-Aufsatz mit angegebener Geschwindigkeit

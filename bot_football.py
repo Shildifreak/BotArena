@@ -657,7 +657,7 @@ def main(server_name):
             """
             t = time.time()
             for bot in bots:
-                if bot.energy < 100:
+                if bot.energy < 100.5:
                     bot.energy += 0.01
                 if t - bot.timeout > 60:
                     print(bot.name,"timed out")
