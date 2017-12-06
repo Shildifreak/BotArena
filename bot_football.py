@@ -600,7 +600,7 @@ collision_handlers = {
 def main(server_name):
     #pygame.init()
     
-    window = pygame.display.set_mode((2000,1000))
+    window = pygame.display.set_mode((1920,1000))
     pygame.display.set_caption("BotArena")
 
     field = Field()
@@ -659,9 +659,9 @@ def main(server_name):
             for bot in bots:
                 if bot.energy < 100.5:
                     bot.energy += 0.01
-                if t - bot.timeout > 60:
-                    print(bot.name,"timed out")
-                    bot.alive = False
+                #if t - bot.timeout > 60:
+                #    print(bot.name,"timed out")
+                #    bot.alive = False
             # io stuff
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
